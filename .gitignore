@@ -1,0 +1,14 @@
+# Rust関連
+/target
+**/*.rs.bk
+Cargo.lock
+
+# プロジェクト固有
+/mnt
+/esp
+/backup
+/third_party/ovmf/
+
+# OS関連
+**/.DS_Store
+**/.Thumbs.db 
