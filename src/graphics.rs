@@ -15,6 +15,7 @@ pub const COLOR_WHITE: u32 = 0xFFFFFF;
 pub const COLOR_BLUE: u32 = 0x0000FF;
 pub const COLOR_RED: u32 = 0xFF0000;
 pub const COLOR_GREEN: u32 = 0x00FF00;
+pub const COLOR_YELLOW: u32 = 0xFFFF00;
 
 /// フレームバッファハンドル
 pub struct FrameBuffer<'a> {
@@ -171,6 +172,49 @@ impl<'a> FrameBuffer<'a> {
                 self.vram[row + xx as usize] = color;
             }
         }
+    }
+
+    pub fn draw_hex(&mut self, x: usize, y: usize, val: usize, color: u32) {
+        let mut buf = [0u8; 2 + 16]; // "0x" + max 16 hex digits for usize
+        buf[0] = b'0';
+        buf[1] = b'x';
+
+        let mut current = val;
+        // Temporary buffer to store digits in reverse order
+        let mut digits = [0u8; 16];
+        let mut count = 0;
+
+        if current == 0 {
+            digits[0] = b'0';
+            count = 1;
+        } else {
+            // Extract digits in reverse order
+            while current > 0 && count < 16 {
+                let digit = (current % 16) as u8;
+                digits[count] = if digit < 10 {
+                    b'0' + digit
+                } else {
+                    b'A' + digit - 10 // Use uppercase hex
+                };
+                current /= 16;
+                count += 1;
+            }
+        }
+
+        // Write digits to the main buffer in correct order
+        let mut buf_idx = 2; // Start writing after "0x"
+        for i in (0..count).rev() {
+            buf[buf_idx] = digits[i];
+            buf_idx += 1;
+        }
+
+        // total_len is the index *after* the last written character,
+        // which is also the length of the slice needed.
+        let total_len = buf_idx;
+
+        // Safety: We constructed the UTF-8 string correctly using ASCII characters.
+        let s = unsafe { core::str::from_utf8_unchecked(&buf[..total_len]) };
+        self.draw_text(x, y, s, color);
     }
 }
 
