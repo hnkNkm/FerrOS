@@ -7,6 +7,7 @@ edition = "2021"
 x86_64 = { version = "0.14.6", default-features = false, features = ["instructions", "abi_x86_interrupt"] }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"], default-features = false }
 spin = "0.9.8"
+linked_list_allocator = "0.10.5"
 
 [profile.dev]
 panic = "abort"
