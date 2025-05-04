@@ -79,3 +79,14 @@ cargo build --target x86_64-unknown-uefi
 ## ライセンス
 
 MIT ライセンス
+
+## ドキュメント
+
+詳細なロードマップや設計資料は `docs/` ディレクトリ（mdBook 形式）にまとめています。ブラウザで閲覧する場合は以下を実行してください：
+
+```bash
+cargo install mdbook # 初回のみ
+mdbook serve docs
+```
+
+ローカルサーバーが立ち上がり、`http://localhost:3000` で閲覧できます。

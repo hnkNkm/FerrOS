@@ -11,4 +11,7 @@ Cargo.lock
 
 # OS関連
 **/.DS_Store
-**/.Thumbs.db 
+**/.Thumbs.db
+
+# mdBook build output
+/docs/book/ 
