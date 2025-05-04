@@ -41,13 +41,25 @@ pub enum EfiStatus {
 
 #[repr(C)]
 pub struct EfiBootServicesTable {
-    _reserved0: [u64; 40],
+    _reserved0: [u64; 7],
+    pub get_memory_map: extern "win64" fn(
+        memory_map_size: *mut usize,
+        memory_map: *mut EfiMemoryDescriptor,
+        map_key: *mut usize,
+        descriptor_size: *mut usize,
+        descriptor_version: *mut u32,
+    ) -> EfiStatus,
+    _reserved1: [u64; 21],
+    pub exit_boot_services: extern "win64" fn(image_handle: EfiHandle, map_key: usize) -> EfiStatus,
+    _reserved2: [u64; 10],
     pub locate_protocol: extern "win64" fn(
         protocol: *const EfiGuid,
         registration: *const EfiVoid,
         interface: *mut *mut EfiVoid,
     ) -> EfiStatus,
 }
+const _: () = assert!(offset_of!(EfiBootServicesTable, get_memory_map) == 56);
+const _: () = assert!(offset_of!(EfiBootServicesTable, exit_boot_services) == 232);
 const _: () = assert!(offset_of!(EfiBootServicesTable, locate_protocol) == 320);
 
 #[repr(C)]
@@ -84,6 +96,58 @@ pub struct EfiGraphicsOutputProtocolMode<'a> {
 pub struct EfiGraphicsOutputProtocol<'a> {
     reserved: [u64; 3],
     pub mode: &'a EfiGraphicsOutputProtocolMode<'a>,
+}
+
+/// UEFI Memory Descriptor (UEFI 2.x)
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct EfiMemoryDescriptor {
+    pub memory_type: u32,
+    pub padding: u32, // 32bit アラインメント用
+    pub physical_start: u64,
+    pub virtual_start: u64,
+    pub number_of_pages: u64,
+    pub attribute: u64,
+}
+
+// メモリマップ保持用バッファサイズ (32KiB)
+const MEMORY_MAP_BUFFER_SIZE: usize = 4096 * 8;
+
+/// メモリマップ取得用の作業バッファ
+pub struct MemoryMapHolder {
+    pub memory_map_buffer: [u8; MEMORY_MAP_BUFFER_SIZE],
+    pub memory_map_size: usize,
+    pub map_key: usize,
+    pub descriptor_size: usize,
+    pub descriptor_version: u32,
+}
+
+impl MemoryMapHolder {
+    /// 新しい空のホルダー
+    pub fn new() -> Self {
+        Self {
+            memory_map_buffer: [0u8; MEMORY_MAP_BUFFER_SIZE],
+            memory_map_size: 0,
+            map_key: 0,
+            descriptor_size: 0,
+            descriptor_version: 0,
+        }
+    }
+}
+
+impl EfiBootServicesTable {
+    /// `GetMemoryMap` を呼び出して `MemoryMapHolder` を更新
+    pub fn call_get_memory_map(&self, holder: &mut MemoryMapHolder) -> EfiStatus {
+        // 呼び出すたびにサイズを設定し直す (UEFI 要件)
+        holder.memory_map_size = holder.memory_map_buffer.len();
+        (self.get_memory_map)(
+            &mut holder.memory_map_size as *mut usize,
+            holder.memory_map_buffer.as_mut_ptr() as *mut EfiMemoryDescriptor,
+            &mut holder.map_key as *mut usize,
+            &mut holder.descriptor_size as *mut usize,
+            &mut holder.descriptor_version as *mut u32,
+        )
+    }
 }
 
 /// `SystemTable` から GOP を検索し、`FrameBuffer` を生成して返す
