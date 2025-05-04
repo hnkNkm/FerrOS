@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(offset_of)]
+#![feature(abi_x86_interrupt)]
 
 use core::panic::PanicInfo;
 
@@ -10,6 +11,9 @@ use graphics::{FrameBuffer, COLOR_WHITE, COLOR_RED, COLOR_GREEN};
 
 mod efi;
 use efi::{EfiHandle, EfiSystemTable, framebuffer, MemoryMapHolder, EfiStatus};
+
+mod gdt;
+mod interrupts;
 
 // ------------------------------------------------------------
 // 簡易 UI モジュール（暫定）
@@ -52,6 +56,10 @@ fn efi_main(image_handle: EfiHandle, system_table: &EfiSystemTable) {
     // BootServices との決別: ExitBootServices を呼び出す
     let mut mmap = MemoryMapHolder::new();
     exit_from_efi_boot_services(image_handle, system_table, &mut mmap);
+
+    // CPU 初期化: GDT/TSS・IDT 設定
+    gdt::init();
+    interrupts::init();
 
     // 以降は Non-UEFI 世界。画面をクリアしてメッセージ表示
     fb.clear(COLOR_RED);
