@@ -4,6 +4,7 @@
 
 use core::panic::PanicInfo;
 
+mod font;
 mod graphics;
 use graphics::{FrameBuffer, COLOR_BLUE, COLOR_WHITE, COLOR_RED, COLOR_GREEN};
 
@@ -21,7 +22,7 @@ mod ui {
         fb.clear(COLOR_BLUE);
 
         // テキスト
-        let label = "FERR OS";
+        let label = "Hello, World!";
         let text_width = label.len() * 8 + (label.len() - 1) * 2;
         let x = (fb.width - text_width) / 2;
         let y = fb.height / 2 - 4;

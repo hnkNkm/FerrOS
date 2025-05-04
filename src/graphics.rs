@@ -6,6 +6,7 @@
 //! - UEFI のフレームバッファへのアクセスを想定しており 32-bit BGRX/RGBX 形式を扱います。
 
 use core::cmp::{max, min};
+use crate::font;
 
 /// 24bit カラー定数 (0xRRGGBB)
 /// 必要に応じて追加してください。
@@ -173,26 +174,8 @@ impl<'a> FrameBuffer<'a> {
     }
 }
 
-// ======================= フォントデータ ===============================
-// 8x8 ビットマップフォント (必要な分だけ収録)
-// ビット列は左から MSB (bit7) が画面左側に対応。
-
-const FONT_SPACE: [u8; 8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-const FONT_F: [u8; 8] = [0xFF, 0x80, 0x80, 0xF0, 0x80, 0x80, 0x80, 0x80];
-const FONT_E: [u8; 8] = [0xFF, 0x80, 0x80, 0xF0, 0x80, 0x80, 0x80, 0xFF];
-const FONT_R: [u8; 8] = [0xF0, 0x88, 0x88, 0xF0, 0xA0, 0x90, 0x88, 0x84];
-const FONT_O: [u8; 8] = [0x78, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x78];
-const FONT_S: [u8; 8] = [0x78, 0x84, 0x80, 0x78, 0x04, 0x04, 0x84, 0x78];
-
-/// 対応している文字のフォントを取得
+// ======================= フォント取得 ===============================
+/// 指定 Unicode 文字の 8x8 ビットマップを返す。
 fn font_for(ch: char) -> Option<&'static [u8; 8]> {
-    match ch {
-        ' ' => Some(&FONT_SPACE),
-        'F' => Some(&FONT_F),
-        'E' => Some(&FONT_E),
-        'R' => Some(&FONT_R),
-        'O' => Some(&FONT_O),
-        'S' => Some(&FONT_S),
-        _ => None, // 未サポート文字
-    }
+    font::glyph(ch)
 } 
