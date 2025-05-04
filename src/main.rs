@@ -2,6 +2,9 @@
 #![no_main]
 #![feature(offset_of)]
 #![feature(abi_x86_interrupt)]
+#![feature(alloc_error_handler)]
+
+extern crate alloc;
 
 use core::panic::PanicInfo;
 
@@ -15,6 +18,8 @@ use efi::{EfiHandle, EfiSystemTable, framebuffer, MemoryMapHolder, EfiStatus};
 mod gdt;
 mod interrupts;
 mod memory;
+
+use alloc::vec::Vec;
 
 // ------------------------------------------------------------
 // 簡易 UI モジュール（暫定）
@@ -62,14 +67,37 @@ fn efi_main(image_handle: EfiHandle, system_table: &EfiSystemTable) {
     gdt::init();
     interrupts::init();
     unsafe { memory::init(); }
+    unsafe { memory::init_heap(); }
+
+    // 動的確保テスト: reserve 1KiB 分の Vec
+    let mut test_vec: Vec<u64> = Vec::new();
+    let msg;
+    let color;
+    match test_vec.try_reserve_exact(1024) {
+        Ok(_) => {
+            msg = "Heap OK";
+            color = COLOR_GREEN;
+        }
+        Err(_) => {
+            msg = "Heap NG";
+            color = COLOR_RED;
+        }
+    }
+
+    fb.clear(COLOR_RED);
+    // 結果を描画
+    let msg_w = msg.len() * 8 + (msg.len() - 1) * 2;
+    let hx = (fb.width - msg_w) / 2;
+    let hy = fb.height / 2 - 4 + 16;
+    fb.draw_text(hx, hy, msg, color);
 
     // 以降は Non-UEFI 世界。画面をクリアしてメッセージ表示
-    fb.clear(COLOR_RED);
-    let label = "Hello, NonUEFI!";
-    let text_width = label.len() * 8 + (label.len() - 1) * 2;
-    let x = (fb.width - text_width) / 2;
-    let y = fb.height / 2 - 4;
-    fb.draw_text(x, y, label, COLOR_WHITE);
+    // fb.clear(COLOR_RED);
+    // let label = "Hello, NonUEFI!";
+    // let text_width = label.len() * 8 + (label.len() - 1) * 2;
+    // let x = (fb.width - text_width) / 2;
+    // let y = fb.height / 2 - 4;
+    // fb.draw_text(x, y, label, COLOR_WHITE);
 
     loop {}
 }
@@ -94,5 +122,10 @@ fn exit_from_efi_boot_services(
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    loop {}
+}
+
+#[alloc_error_handler]
+fn alloc_error(_layout: core::alloc::Layout) -> ! {
     loop {}
 }
