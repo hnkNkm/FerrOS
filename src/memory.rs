@@ -1,9 +1,8 @@
 use x86_64::registers::control::{Cr3, Cr3Flags};
-use x86_64::structures::paging::{PhysFrame};
-use x86_64::{PhysAddr};
+use x86_64::structures::paging::{PhysFrame, FrameAllocator, Size4KiB};
+use x86_64::PhysAddr;
 use linked_list_allocator::LockedHeap;
-use spin::Mutex;
-use core::alloc::Layout;
+use crate::efi::EfiMemoryDescriptor;
 
 const PAGE_PRESENT: u64 = 1;
 const PAGE_WRITABLE: u64 = 1 << 1;
@@ -15,8 +14,8 @@ struct PageTable([u64; 512]);
 static mut PML4_TABLE: PageTable = PageTable([0; 512]);
 static mut PDP_TABLE: PageTable = PageTable([0; 512]);
 
-// ヒープ領域 (仮): 0x4444_4444_0000 - +100KiB
-pub const HEAP_START: usize = 0x_4444_4444_0000;
+// ヒープ領域 (仮): 0x0080_0000 (8MiB) - +100KiB
+pub const HEAP_START: usize = 0x0080_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100KiB
 
 #[global_allocator]
@@ -47,4 +46,55 @@ pub unsafe fn init() {
 /// HEAP_START..HEAP_START+HEAP_SIZE 領域がマッピングされている必要がある。
 pub unsafe fn init_heap() {
     GLOBAL_ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
+}
+
+pub struct BootInfoFrameAllocator {
+    memory_map: &'static [EfiMemoryDescriptor],
+    next_desc: usize,
+    offset: u64,
+}
+
+impl BootInfoFrameAllocator {
+    /// Safety: `holder` のライフタイムが 'static であり、UEFI から取得した
+    /// メモリマップバッファであることを前提とする。
+    pub unsafe fn new(holder: &crate::efi::MemoryMapHolder) -> Self {
+        let num_desc = holder.memory_map_size / holder.descriptor_size;
+        let descriptors = core::slice::from_raw_parts(
+            holder.memory_map_buffer.as_ptr() as *const EfiMemoryDescriptor,
+            num_desc,
+        );
+        Self {
+            memory_map: descriptors,
+            next_desc: 0,
+            offset: 0,
+        }
+    }
+}
+
+// EfiConventionalMemory = 7
+const EFI_CONVENTIONAL: u32 = 7;
+
+unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<PhysFrame> {
+        loop {
+            let desc = self.memory_map.get(self.next_desc)?;
+            if desc.memory_type != EFI_CONVENTIONAL {
+                self.next_desc += 1;
+                self.offset = 0;
+                continue;
+            }
+            let region_start = desc.physical_start;
+            let region_size = desc.number_of_pages * 4096;
+            let candidate = region_start + self.offset;
+            if candidate + 4096 <= region_start + region_size {
+                let frame = PhysFrame::containing_address(PhysAddr::new(candidate));
+                self.offset += 4096;
+                return Some(frame);
+            } else {
+                self.next_desc += 1;
+                self.offset = 0;
+                continue;
+            }
+        }
+    }
 } 
